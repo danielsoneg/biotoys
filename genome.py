@@ -8,16 +8,24 @@ from Bio.SeqRecord import SeqRecord
 
 VALID = ("A", "T", "G", "C")
 MASK = "N"
-r_mutate  = 0.0
-r_crop    = 0.0
-r_degrade = 0.0
-r_snp     = 0.0
 
 def set_params(mutate, crop, degrade, snp):
-    global r_mutate, r_crop, r_degrade, r_snp
-    r_mutate, r_crop, r_degrade, r_snp = mutate, crop, degrade, snp
+    Genome.Params.set_params(mutate, crop, degrade, snp)
 
-class Sequence:
+class Genome:
+    class Params:
+        r_mutate  = 0.0
+        r_crop    = 0.0
+        r_degrade = 0.0
+        r_snp     = 0.0
+
+    @classmethod
+    def set_params(cls, mutate, crop, degrade, snp):
+        cls.Params.r_mutate = mutate
+        cls.Params.r_crop = crop
+        cls.Params.r_degrade = degrade
+        cls.Params.r_snp = snp
+
     __base_seq = ""
     name = ""
 
@@ -38,7 +46,7 @@ class Sequence:
         return "Sequence %s: %s" % (self.name, self.seq)
 
     def mutate(self):
-        return mutate(r_mutate, self.base_seq, r_snp=r_snp)
+        return mutate(self.Params.r_mutate, self.base_seq, r_snp=self.Params.r_snp)
 
     @property
     def base_seq(self):
@@ -53,8 +61,8 @@ class Sequence:
     @property
     def seq(self):
         if not hasattr(self, "__seq"):
-            self.__seq = crop(r_crop,
-                         degrade(r_degrade,
+            self.__seq = crop(self.Params.r_crop,
+                         degrade(self.Params.r_degrade,
                          self.__base_seq))
         return self.__seq
     
@@ -88,9 +96,12 @@ def mutate(rate, seq, r_snp=0):
         seq = snp(r_snp, seq)
     return "".join(seq)
 
-def snp(count, seq):
+def snp(r_snp, seq):
     seq = list(seq)
-    for idx in random.sample(range(len(seq)), k=count):
+    l_seq = len(seq)
+    if r_snp < 1: # assume percent
+        r_snp = int(l_seq * r_snp)
+    for idx in random.sample(range(len(seq)), k=r_snp):
         existing = seq[idx]
         while seq[idx] == existing: # No for real mutate
             seq[idx] = random_nucleotide()
@@ -118,7 +129,7 @@ def degrade(rate, seq):
     return "".join(base if random.random() >= rate else "N" for base in seq)
 
 def generate_tree(seq_length, generations, rate, name=None):
-    tree = list(iter_tree(Sequence.generate(seq_length, name=name), rate, 0, generations))
+    tree = list(iter_tree(Genome.generate(seq_length, name=name), rate, 0, generations))
     print("Root: %s" % tree[0].name)
     return tree
 
@@ -131,3 +142,8 @@ def iter_tree(seq, per_gen, current, max_gen):
 def output_tree(tree, dest):
     with open(dest, "w") as fasta:
         SeqIO.write((s.seq_record for s in tree), fasta, "fasta")
+
+def run_with_params(seq_length=1000, generations=5, rate=3, mutate=0.0, crop=0.0, degrade=0.0, snp=0):
+    set_params(mutate, crop, degrade, snp)
+    tree = generate_tree(seq_length, generations, rate, name="BASE")
+    output_tree(tree, "./output/clean.fasta")
