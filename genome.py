@@ -6,6 +6,8 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
+from fuzzywuzzy import fuzz
+
 VALID = ("A", "T", "G", "C")
 MASK = "N"
 
@@ -27,6 +29,7 @@ class Genome:
         cls.Params.r_snp = snp
 
     __base_seq = ""
+
     name = ""
 
     @classmethod
@@ -45,8 +48,17 @@ class Genome:
     def __repr__(self):
         return "Sequence %s: %s" % (self.name, self.seq)
 
+    def __eq__(self, other):
+        return self.base_seq == other.base_seq
+
+    def __len__(self):
+        return len(self.base_seq)
+
     def mutate(self):
         return mutate(self.Params.r_mutate, self.base_seq, r_snp=self.Params.r_snp)
+
+    def distance(self, genome):
+        return 100 - fuzz.ratio(self.__base_seq, genome.__base_seq)
 
     @property
     def base_seq(self):
@@ -73,13 +85,13 @@ class Genome:
     def seq_record(self):
         return SeqRecord(Seq(self.seq), id=self.name, description=self.description)
 
-    @property
+    @functools.cached_property
     def generation(self): return self.name.count(".")
-    @property
+    @functools.cached_property
     def childnumber(self): return self.name.rpartition(".")[2] 
-    @property
+    @functools.cached_property
     def lineage(self): return self.name.partition(".")[0]
-    @property
+    @functools.cached_property
     def description(self):
         return "Child %s of generation %s of lineage %s" % (
                 self.childnumber, self.generation, self.lineage)
